@@ -6,10 +6,20 @@ This script downloads the AQUA dataset from HuggingFace, creates train/val/test 
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - Access to the target W&B instance
 - Internet access (HuggingFace downloads)
 - A W&B team created on the instance for workshop participants (this is the `--entity` value)
+- **For the CI/CD automation (Step 9):** A webhook integration must be configured in the W&B team settings **before** running `setup.py`. The script looks for a webhook named `github-model-cicd` by default (override with `--webhook-name`). To set this up:
+  1. Get a GitHub token with `repo` scope from the workshop owners
+  2. In W&B: **Team Settings > Team secrets > New secret**
+     - Name: `GITHUB_TOKEN`
+     - Secret: the GitHub access token
+  3. In W&B: **Team Settings > Webhooks > New webhook**
+     - Name: `github-model-cicd`
+     - URL: `https://api.github.com/repos/MBakirWB/Automation_Jobs/dispatches`
+     - Access token: select `GITHUB_TOKEN` from the secrets dropdown
+  4. If the webhook doesn't exist when `setup.py` runs, Step 9 will be skipped and the rest of the setup completes normally
 
 ## Setup
 
@@ -31,6 +41,7 @@ python setup.py --entity <your-wandb-team> --host <wandb-instance-url>
 |------|----------|---------|-------------|
 | `--entity` | Yes | — | W&B team or username |
 | `--host` | No | `https://api.wandb.ai` | W&B instance URL (for self-hosted) |
+| `--webhook-name` | No | `github-model-cicd` | Name of the webhook integration for the CI/CD automation |
 
 The project is fixed to `SIE-Workshop-2026`.
 
@@ -45,7 +56,10 @@ The project is fixed to `SIE-Workshop-2026`.
 | `pretrained-resnet50` | pretrained-weights | ImageNet weights for resnet50 |
 | `pretrained-efficientnet_b0` | pretrained-weights | ImageNet weights for efficientnet_b0 |
 
-It also logs a `dataset-eda-exploration` run with an interactive table for data exploration.
+It also:
+- Logs a `dataset-eda-exploration` run with an interactive table for data exploration
+- Creates the `aqua-classifier` collection in the Model Registry
+- Sets up a `github-model-cicd` automation that fires a webhook when the `production` alias is added to any artifact in that collection
 
 ## What it creates locally
 
