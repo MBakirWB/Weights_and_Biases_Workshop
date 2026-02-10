@@ -7,11 +7,17 @@ Build an image classifier for marine species and learn the full MLOps lifecycle 
 Using the AQUA underwater dataset (20 marine species, 8K+ images), you'll train a baseline model, run a hyperparameter sweep, and promote the best model to production -- all tracked end-to-end in W&B.
 
 **Topics covered:**
-- Experiment tracking (runs, config, metrics, alerts)
-- Visual logging (images, tables, ROC curves)
+- Experiment tracking (runs, config, metrics, alerts, commit=False, define_metric)
+- Visual logging (images, tables, ROC curves, per-class metrics)
 - Artifacts (versioning, lineage, TTL, reference artifacts)
+- Resuming runs (resume by ID, continue training seamlessly)
+- Offline mode (train without connectivity, sync later)
 - Model Registry (staging, promotion)
-- Sweeps (hyperparameter optimization, sweep controls)
+- Sweeps (hyperparameter optimization, CLI sweeps, parallel agents)
+- Automations (CI/CD triggers from registry events)
+- Programmatic API (optional -- query runs, filters, metadata)
+- Programmatic Reports (optional -- Reports API, PanelGrid)
+- SDK Settings Reference (optional -- network, git, distributed training)
 
 ## Getting started
 
@@ -24,17 +30,32 @@ Otherwise, create a virtual environment and install dependencies:
 ```bash
 cd 2026-Workshop
 python -m venv workshop
-source workshop/bin/activate   # On Windows: workshop\Scripts\activate
+source workshop/bin/activate
 pip install -r requirements.txt
 ```
 
 > **Note:** If you plan to run the notebook in Jupyter, make sure `jupyter` and `ipykernel` are installed in the same environment, then register the kernel:
 > ```bash
 > pip install jupyter ipykernel
-> python -m ipykernel install --user --name workshop --display-name "Workshop (Python)"
+> python -m ipykernel install --user --name wandb_workshop --display-name "W&B Workshop"
 > ```
 
-### 2. Verify local data
+### 2. Configure your `.env` file
+
+Open `workshop_material/.env` and fill in your W&B credentials:
+
+```
+WANDB_ENTITY=your-team-name
+WANDB_PROJECT=SIE-Workshop-2026
+WANDB_BASE_URL=https://your-wandb-instance.example.com
+WANDB_API_KEY=your-api-key-here
+```
+
+All workshop files (notebook, sweep scripts, shared worker) read from this single file.
+
+Find your API key at: **W&B UI > Profile > Settings > API Keys**
+
+### 3. Verify local data
 
 The datasets and pretrained model weights should already be pre-loaded in `workshop_material/`:
 
@@ -59,21 +80,9 @@ pip install datasets torch timm Pillow numpy scikit-learn
 python prepare_local_data.py
 ```
 
-### 3. Open the workshop notebook
+### 4. Open the workshop notebook
 
-Everything lives in `workshop_material/`:
-
-```
-workshop_material/
-  aqua_with_wandb.ipynb     # Main workshop notebook (start here)
-  workshop_utils.py         # ML boilerplate (data loading, training loops, etc.)
-```
-
-Open `aqua_with_wandb.ipynb` and follow along.
-
-### 4. W&B login
-
-You'll need your W&B credentials. The notebook walks you through authentication in the first few cells.
+Open `workshop_material/aqua_with_wandb.ipynb` and follow along. The notebook handles W&B authentication automatically using your `.env` credentials.
 
 ## Supplementary material
 
@@ -83,7 +92,15 @@ New to W&B? Check `supplementary_101_notebooks/` for standalone introductions to
 
 ```
 2026-Workshop/
-  workshop_material/            # Notebook + utilities + pre-loaded data (start here)
+  workshop_material/
+    aqua_with_wandb.ipynb       # Main workshop notebook (start here)
+    workshop_utils.py           # ML boilerplate (data loading, training loops)
+    .env                        # Your W&B credentials (fill in once)
+    sweep_train.py              # Standalone sweep training script (CLI sweeps)
+    sweep_config.yaml           # Sweep search space config
+    shared_worker.py            # Shared-mode demo (multi-process logging)
+    data/                       # Pre-loaded dataset splits (train/val/test)
+    pretrained_weights/         # Pre-loaded model weights
   supplementary_101_notebooks/  # Optional deep-dives on W&B concepts
   admin_setup_only/             # Admin-only: dataset + model upload scripts
   requirements.txt              # Python dependencies
