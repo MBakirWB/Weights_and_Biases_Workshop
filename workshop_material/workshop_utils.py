@@ -296,9 +296,13 @@ def evaluate(
 def generate_run_name(config: Dict) -> str:
     """Generate a descriptive run name from config.
     
-    Format: {model}-lr{learning_rate}-bs{batch_size}-ep{epochs}
-    Example: resnet50-lr1e-3-bs32-ep3
+    Format: {user}-{model}-lr{learning_rate}-bs{batch_size}-ep{epochs}
+    Example: alice-resnet50-lr1e-3-bs32-ep3
+    
+    If config["user_name"] is set, it's prepended for easy identification
+    in shared workshop projects.
     """
+    user = config.get("user_name", "")
     model = config.get("model_name", "model")
     lr = config.get("learning_rate", 1e-3)
     bs = config.get("batch_size", 32)
@@ -307,7 +311,8 @@ def generate_run_name(config: Dict) -> str:
     # Format learning rate nicely (1e-3 -> 1e-3, 0.001 -> 1e-3)
     lr_str = f"{lr:.0e}".replace("-0", "-")
     
-    return f"{model}-lr{lr_str}-bs{bs}-ep{ep}"
+    prefix = f"{user}-" if user else ""
+    return f"{prefix}{model}-lr{lr_str}-bs{bs}-ep{ep}"
 # VISUALIZATION HELPERS
 def create_prediction_images(dataset, preds, probs, class_names, n_samples=16, image_size=224):
     """
@@ -510,8 +515,10 @@ def log_checkpoint_artifact(
     """
     from datetime import timedelta
 
+    user_name = config.get("user_name", "")
+    name_suffix = f"-{user_name}" if user_name else ""
     artifact = wandb.Artifact(
-        name=f"model-{config.get('model_name', 'model')}",
+        name=f"model{name_suffix}-{config.get('model_name', 'model')}",
         type="model",
         metadata={**metrics, "epoch": epoch},
     )
