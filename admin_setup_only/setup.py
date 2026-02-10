@@ -36,6 +36,7 @@ import numpy as np
 import torch
 import timm
 import wandb
+from wandb.automations import OnAddArtifactAlias, ArtifactEvent, SendWebhook
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 
@@ -54,6 +55,11 @@ ARTIFACT_TYPE = "dataset"
 
 REGISTRY_TYPE = "dataset"
 COLLECTION_NAME = "Aqua-raw-dataset"
+
+# Model Registry automation config
+MODEL_REGISTRY_COLLECTION = "aqua-classifier"
+AUTOMATION_NAME = "github-model-cicd"
+AUTOMATION_WEBHOOK_NAME = "github-model-cicd"
 
 DATA_DIR = "aqua_raw_data"
 SPLITS_DIR = "aqua_splits"
@@ -207,7 +213,7 @@ def create_stratified_sample(image_files, class_names, samples_per_class, seed=4
     return sampled_indices
 
 
-def main(entity=None, host=None):
+def main(entity=None, host=None, webhook_name=None):
     global WANDB_ENTITY
     if entity:
         WANDB_ENTITY = entity
@@ -553,6 +559,125 @@ def main(entity=None, host=None):
 
     print(f"\nParticipant data ready at: {os.path.abspath(PARTICIPANT_DIR)}")
 
+    # Step 9: Set up GitHub CI/CD automation for the Model Registry
+    # This creates the "aqua-classifier" collection in the Model Registry
+    # and attaches an automation that fires a webhook to GitHub Actions
+    # whenever the "production" alias is added to any artifact version.
+    #
+    # PREREQUISITE: A webhook integration must already be configured in
+    # W&B Team Settings (Settings > Webhooks) with the name matching
+    # AUTOMATION_WEBHOOK_NAME. The webhook should point to your GitHub
+    # repo's repository_dispatch endpoint.
+    print("\nStep 9: Setting up Model Registry automation for CI/CD...")
+
+    api = wandb.Api()
+
+    # 9a: Create the aqua-classifier collection in the Model Registry
+    # by logging a placeholder model artifact and linking it.
+    print("  Creating model registry collection...")
+    setup_run = wandb.init(
+        entity=WANDB_ENTITY,
+        project=WANDB_PROJECT,
+        name="registry-collection-setup",
+        job_type="admin-setup",
+        tags=["admin", "setup", "registry"],
+    )
+
+    placeholder_metadata = {
+        "purpose": "Initialize registry collection for workshop",
+        "created_by": "setup.py",
+        "created_at": datetime.now().isoformat(),
+    }
+    placeholder_path = "_placeholder_init.json"
+    with open(placeholder_path, "w") as f:
+        json.dump(placeholder_metadata, f, indent=2)
+
+    placeholder_artifact = wandb.Artifact(
+        name="aqua-classifier-init",
+        type="model",
+        description="Placeholder to initialize the aqua-classifier registry collection",
+        metadata=placeholder_metadata,
+    )
+    placeholder_artifact.add_file(placeholder_path)
+    setup_run.log_artifact(placeholder_artifact)
+
+    setup_run.link_artifact(
+        artifact=placeholder_artifact,
+        target_path=f"wandb-registry-model/{MODEL_REGISTRY_COLLECTION}",
+    )
+    wandb.finish()
+    os.remove(placeholder_path)
+    print(f"  Registry collection created: {MODEL_REGISTRY_COLLECTION}")
+
+    # 9b: Fetch the webhook integration and create the automation
+    resolved_webhook_name = webhook_name or AUTOMATION_WEBHOOK_NAME
+    print(f"  Looking for webhook integration: '{resolved_webhook_name}'...")
+
+    try:
+        available_webhooks = list(api.webhook_integrations(entity=WANDB_ENTITY))
+        webhook = next(
+            hook for hook in available_webhooks
+            if resolved_webhook_name.lower() in getattr(hook, "name", "").lower()
+            or resolved_webhook_name.lower() in getattr(hook, "url_endpoint", "").lower()
+        )
+    except StopIteration:
+        print(f"  ERROR: No webhook integration matching '{resolved_webhook_name}' found.")
+        if available_webhooks:
+            print(f"  Available webhooks:")
+            for hook in available_webhooks:
+                name = getattr(hook, "name", "unnamed")
+                url = getattr(hook, "url_endpoint", "unknown")
+                print(f"    - {name}: {url}")
+        else:
+            print(f"  No webhook integrations configured for entity '{WANDB_ENTITY}'.")
+        print(f"\n  Create the webhook in W&B Team Settings > Webhooks, then re-run setup.")
+        print(f"  Or pass --webhook-name to match a different webhook.")
+        print("\nDone! Setup complete (automation skipped).")
+        return
+
+    # 9c: Define the automation event and action
+    collection = api.artifact_collection(
+        "model",
+        f"wandb-registry-model/{MODEL_REGISTRY_COLLECTION}",
+    )
+
+    # Event: trigger when alias matching "^production$" is added
+    event = OnAddArtifactAlias(
+        scope=collection,
+        filter=ArtifactEvent.alias.matches_regex(r"^production$"),
+    )
+
+    # Action: fire the webhook with the GitHub Actions payload
+    action = SendWebhook.from_integration(
+        webhook,
+        payload={
+            "event_type": "webhook",
+            "client_payload": {
+                "event_author": "${event_author}",
+                "artifact_version": "${artifact_version}",
+                "artifact_version_string": "${artifact_version_string}",
+                "artifact_collection_name": "${artifact_collection_name}",
+                "project_name": "${project_name}",
+                "entity_name": "${entity_name}",
+            },
+        },
+    )
+
+    # 9d: Create the automation
+    automation = api.create_automation(
+        event >> action,
+        name=AUTOMATION_NAME,
+        description=(
+            "Triggers a GitHub Actions workflow when a model is promoted to "
+            "production in the Registry. Creates a review issue with the "
+            "artifact metadata, author, and lineage link for audit and approval."
+        ),
+    )
+
+    print(f"  Automation created: {automation.name}")
+    print(f"  Trigger: alias '^production$' added to '{MODEL_REGISTRY_COLLECTION}'")
+    print(f"  Action: webhook -> GitHub Actions")
+
     # Cleanup temporary working files
     shutil.rmtree(DATA_DIR, ignore_errors=True)
     shutil.rmtree(SPLITS_DIR, ignore_errors=True)
@@ -566,8 +691,10 @@ def main(entity=None, host=None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Setup W&B workshop: upload dataset, splits, EDA table, and pretrained model weights")
+    parser = argparse.ArgumentParser(description="Setup W&B workshop: upload dataset, splits, EDA table, pretrained model weights, and registry automation")
     parser.add_argument("--entity", type=str, required=True, help="W&B entity/team (required)")
     parser.add_argument("--host", type=str, default=None, help="W&B host URL (e.g. https://your-instance.wandb.io)")
+    parser.add_argument("--webhook-name", type=str, default=None,
+                        help=f"Name of the webhook integration for CI/CD automation (default: '{AUTOMATION_WEBHOOK_NAME}')")
     args = parser.parse_args()
-    main(entity=args.entity, host=args.host)
+    main(entity=args.entity, host=args.host, webhook_name=args.webhook_name)
