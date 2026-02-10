@@ -55,7 +55,17 @@ All workshop files (notebook, sweep scripts, shared worker) read from this singl
 
 Find your API key at: **W&B UI > Profile > Settings > API Keys**
 
-### 3. Verify local data
+### 3. Set your name in the notebook
+
+Open `workshop_material/aqua_with_wandb.ipynb` and set `YOUR_NAME` near the top of the Setup section (Cell 6):
+
+```python
+YOUR_NAME = "alice"  # Use your first name, lowercase, no spaces
+```
+
+This namespaces your artifacts, registry entries, and run groups so multiple participants can work in the same W&B project without conflicts. If you also plan to use the CLI sweep script (`sweep_train.py`), set `YOUR_NAME` there too.
+
+### 4. Verify local data
 
 The datasets and pretrained model weights should already be pre-loaded in `workshop_material/`:
 
@@ -80,7 +90,7 @@ pip install datasets torch timm Pillow numpy scikit-learn
 python prepare_local_data.py
 ```
 
-### 4. Open the workshop notebook
+### 5. Open the workshop notebook
 
 Open `workshop_material/aqua_with_wandb.ipynb` and follow along. The notebook handles W&B authentication automatically using your `.env` credentials.
 

@@ -41,6 +41,11 @@ load_dotenv()
 WANDB_ENTITY = os.environ.get("WANDB_ENTITY")
 WANDB_PROJECT = os.environ.get("WANDB_PROJECT")
 
+# ── YOUR NAME ────────────────────────────────────────────────────────────────
+# Set this to match YOUR_NAME in the notebook. It namespaces run groups and
+# tags so your sweep runs are easy to find in the shared project.
+YOUR_NAME = None  # <-- SET THIS, e.g. YOUR_NAME = "alice"
+
 # Artifact paths for lineage tracking
 ARTIFACT_PROJECT = f"{WANDB_ENTITY}/{WANDB_PROJECT}"
 TRAIN_ARTIFACT = f"{ARTIFACT_PROJECT}/aqua-train:v0"
@@ -54,7 +59,11 @@ LOCAL_WEIGHTS_DIR = "./pretrained_weights"
 
 def main():
     """Training function called by the sweep agent."""
-    with wandb.init() as run:
+    init_kwargs = {}
+    if YOUR_NAME:
+        init_kwargs["group"] = YOUR_NAME
+        init_kwargs["tags"] = [YOUR_NAME, "aqua", "sweep"]
+    with wandb.init(**init_kwargs) as run:
         # Mark as preemptible — auto-requeues if killed
         run.mark_preempting()
 
