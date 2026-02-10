@@ -1,0 +1,40 @@
+# Sweep configuration for AQUA Species Classification
+# Usage:
+#   1. Create the sweep:  wandb sweep sweep_config.yaml
+#   2. Launch an agent:   wandb agent <ENTITY>/<PROJECT>/<SWEEP_ID>
+#   3. (Optional) Open more terminals and run wandb agent again
+#      to parallelize across CPUs/GPUs.
+
+program: sweep_train.py
+method: random
+name: aqua-hyperparam-sweep-cli
+# Update these to match your .env values
+entity: None    # e.g. your-team-name
+project: SIE-Workshop-2026
+
+metric:
+  name: val/accuracy
+  goal: maximize
+
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 1e-2
+  batch_size:
+    values: [16, 32, 64]
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+  # Fixed parameters (not swept)
+  model_name:
+    values: [resnet50, efficientnet_b0]
+  epochs:
+    value: 2
+  image_size:
+    value: 224
+  max_samples:
+    value: 1000
+  use_amp:
+    value: true

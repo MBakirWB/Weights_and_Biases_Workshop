@@ -1,4 +1,5 @@
 # Workshop participant requirements
+python-dotenv
 wandb-workspaces
 wandb
 torch

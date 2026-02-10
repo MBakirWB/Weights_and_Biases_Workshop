@@ -7,14 +7,19 @@ Usage:
   2. In a separate terminal: python test.py
   3. Watch both processes log to the same run in W&B
 """
+import os
 import wandb
 import time
 import random
+from dotenv import load_dotenv
+
+# Load WANDB_ENTITY and WANDB_PROJECT from .env (same file as the notebook)
+load_dotenv()
+WANDB_ENTITY = os.environ.get("WANDB_ENTITY")
+WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "SIE-Workshop-2026")
 
 # Must match the primary run's ID from the notebook
 PRIMARY_RUN_ID = input("Enter the run ID from your notebook (shown after wandb.init): ").strip()
-WANDB_ENTITY = input("Enter the W&B entity: ").strip()
-WANDB_PROJECT = input("Enter the W&B project: ").strip()
 
 if not PRIMARY_RUN_ID:
     print("No run ID provided. Exiting.")
