@@ -58,8 +58,9 @@ The project is fixed to `SIE-Workshop-2026`.
 
 It also:
 - Logs a `dataset-eda-exploration` run with an interactive table for data exploration
-- Creates the `aqua-classifier` collection in the Model Registry
+- Creates a dedicated `sie-workshop-uk-2026` registry (via `api.create_registry()`) with an `aqua-classifier` collection inside it
 - Sets up a `github-model-cicd` automation that fires a webhook when the `production` alias is added to any artifact in that collection
+- **Cleanup:** After the workshop, delete the entire `sie-workshop-uk-2026` registry to remove all workshop artifacts in one step
 
 ## What it creates locally
 

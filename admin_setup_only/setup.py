@@ -559,22 +559,36 @@ def main(entity=None, host=None, webhook_name=None):
 
     print(f"\nParticipant data ready at: {os.path.abspath(PARTICIPANT_DIR)}")
 
-    # Step 9: Set up GitHub CI/CD automation for the Model Registry
-    # This creates the "aqua-classifier" collection in the Model Registry
-    # and attaches an automation that fires a webhook to GitHub Actions
-    # whenever the "production" alias is added to any artifact version.
+    # Step 9: Set up Workshop Registry and CI/CD automation
+    # This creates a dedicated "workshop" registry, links a placeholder
+    # artifact to create the "aqua-classifier" collection, and attaches
+    # an automation that fires a webhook to GitHub Actions whenever the
+    # "production" alias is added to any artifact version.
     #
     # PREREQUISITE: A webhook integration must already be configured in
     # W&B Team Settings (Settings > Webhooks) with the name matching
     # AUTOMATION_WEBHOOK_NAME. The webhook should point to your GitHub
     # repo's repository_dispatch endpoint.
-    print("\nStep 9: Setting up Model Registry automation for CI/CD...")
+    print("\nStep 9: Setting up Workshop Registry and CI/CD automation...")
 
     api = wandb.Api()
 
-    # 9a: Create the aqua-classifier collection in the Model Registry
-    # by logging a placeholder model artifact and linking it.
-    print("  Creating model registry collection...")
+    # 9a: Create the "workshop" registry and the "aqua-classifier" collection.
+    WORKSHOP_REGISTRY_NAME = "sie-workshop-uk-2026"
+    print(f"  Creating '{WORKSHOP_REGISTRY_NAME}' registry...")
+    try:
+        registry = api.create_registry(
+            name=WORKSHOP_REGISTRY_NAME,
+            visibility="organization",
+            description="Workshop registry for aquatic species classification. Safe to delete after the workshop.",
+        )
+        print(f"  Registry created: {registry.name}")
+    except ValueError:
+        # Registry already exists (e.g., re-running setup)
+        registry = api.registry(name=WORKSHOP_REGISTRY_NAME)
+        print(f"  Registry already exists: {registry.name}")
+
+    print("  Creating collection in registry...")
     setup_run = wandb.init(
         entity=WANDB_ENTITY,
         project=WANDB_PROJECT,
@@ -603,7 +617,7 @@ def main(entity=None, host=None, webhook_name=None):
 
     setup_run.link_artifact(
         artifact=placeholder_artifact,
-        target_path=f"wandb-registry-model/{MODEL_REGISTRY_COLLECTION}",
+        target_path=f"wandb-registry-sie-workshop-uk-2026/{MODEL_REGISTRY_COLLECTION}",
     )
     wandb.finish()
     os.remove(placeholder_path)
@@ -638,7 +652,7 @@ def main(entity=None, host=None, webhook_name=None):
     # 9c: Define the automation event and action
     collection = api.artifact_collection(
         "model",
-        f"wandb-registry-model/{MODEL_REGISTRY_COLLECTION}",
+        f"wandb-registry-sie-workshop-uk-2026/{MODEL_REGISTRY_COLLECTION}",
     )
 
     # Event: trigger when alias matching "^production$" is added
