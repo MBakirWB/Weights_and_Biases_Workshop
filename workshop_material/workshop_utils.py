@@ -546,6 +546,247 @@ def log_checkpoint_artifact(
 
 
 
+# SWEEP HELPERS
+def create_sweep_components(cfg, run, weights_artifact: str, local_weights_dir: str):
+    """Create datasets, dataloaders, model, and optimizer for a sweep run.
+
+    Reads hyperparameters from ``cfg`` (a ``wandb.config`` object) and
+    returns everything needed for the training loop.
+
+    Returns:
+        (model, train_loader, val_loader, criterion, optimizer, scaler)
+    """
+    train_dataset = AquaticDataset(
+        "./data/train",
+        transform=get_transforms(cfg.image_size, is_training=True),
+        class_names=CLASS_NAMES,
+        max_samples=cfg.max_samples,
+    )
+    val_dataset = AquaticDataset(
+        "./data/val",
+        transform=get_transforms(cfg.image_size, is_training=False),
+        class_names=CLASS_NAMES,
+    )
+
+    loader_kwargs = dict(num_workers=0, pin_memory=True)
+    train_loader = DataLoader(
+        train_dataset, batch_size=cfg.batch_size,
+        shuffle=True, drop_last=True, **loader_kwargs,
+    )
+    val_loader = DataLoader(
+        val_dataset, batch_size=cfg.batch_size,
+        shuffle=False, **loader_kwargs,
+    )
+
+    model = create_model(
+        cfg.model_name, NUM_CLASSES, pretrained=True,
+        weights_artifact=weights_artifact, run=run,
+        local_weights_dir=local_weights_dir,
+    ).to(DEVICE)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=cfg.learning_rate,
+        weight_decay=cfg.weight_decay,
+    )
+    scaler = GradScaler(enabled=cfg.use_amp)
+
+    return model, train_loader, val_loader, criterion, optimizer, scaler
+
+
+# MODEL ARTIFACT HELPERS
+def prepare_model_files(
+    config: Dict,
+    best_model_path: str,
+    best_val_acc: float,
+    test_acc: float,
+    test_loss: float,
+    f1_macro: float,
+    total_params: int,
+    trainable_params: int,
+    train_artifact_ref,
+    val_artifact_ref,
+    run_id: str,
+    output_dir: str = "artifacts",
+) -> Dict:
+    """Prepare model files and return artifact metadata.
+
+    Creates ``output_dir/model.pth`` (copy of best checkpoint) and
+    ``output_dir/model_info.json`` (full model card). Returns a flat
+    metadata dict suitable for ``wandb.Artifact(metadata=...)``.
+    """
+    import json
+    import shutil
+    from datetime import datetime
+
+    train_ref = f"{train_artifact_ref.name}:{train_artifact_ref.version}"
+    val_ref = f"{val_artifact_ref.name}:{val_artifact_ref.version}"
+
+    model_info = {
+        "architecture": config["model_name"],
+        "num_classes": config.get("num_classes", NUM_CLASSES),
+        "class_names": CLASS_NAMES,
+        "input_size": config["image_size"],
+        "pretrained": True,
+        "total_params": total_params,
+        "trainable_params": trainable_params,
+        "training_config": {
+            "epochs": config["epochs"],
+            "batch_size": config["batch_size"],
+            "learning_rate": config["learning_rate"],
+            "optimizer": "AdamW",
+        },
+        "metrics": {
+            "best_val_accuracy": best_val_acc,
+            "test_accuracy": test_acc,
+            "test_loss": test_loss,
+            "f1_macro": f1_macro,
+        },
+        "data_artifacts": {"train": train_ref, "val": val_ref},
+        "created_at": datetime.now().isoformat(),
+        "training_run_id": run_id,
+    }
+
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, "model_info.json"), "w") as f:
+        json.dump(model_info, f, indent=2)
+    shutil.copy(best_model_path, os.path.join(output_dir, "model.pth"))
+
+    # Flat metadata for the artifact (what shows up in the W&B UI)
+    return {
+        "architecture": config["model_name"],
+        "num_classes": config.get("num_classes", NUM_CLASSES),
+        "input_size": config["image_size"],
+        "final_val_accuracy": best_val_acc,
+        "final_test_accuracy": test_acc,
+        "f1_macro": f1_macro,
+        "framework": "pytorch",
+        "domain": "marine_biology",
+        "train_artifact": train_ref,
+        "val_artifact": val_ref,
+    }
+
+
+# EVALUATION HELPERS
+def compute_and_log_class_metrics(
+    run,
+    test_labels: np.ndarray,
+    test_preds: np.ndarray,
+    class_names: List[str],
+) -> float:
+    """Compute per-class precision/recall/F1 and log to W&B.
+
+    Logs a ``evaluation/per_class_metrics`` table and updates
+    ``run.summary`` with macro-averaged precision, recall, and F1.
+
+    Returns:
+        f1_macro: The macro-averaged F1 score.
+    """
+    from sklearn.metrics import precision_recall_fscore_support
+
+    unique_classes = sorted(set(test_labels) | set(test_preds))
+
+    precision, recall, f1, support = precision_recall_fscore_support(
+        test_labels, test_preds, labels=unique_classes, average=None, zero_division=0
+    )
+
+    table = wandb.Table(columns=["Class", "Precision", "Recall", "F1-Score", "Support"])
+    for i, class_idx in enumerate(unique_classes):
+        name = class_names[class_idx] if class_idx < len(class_names) else f"Class_{class_idx}"
+        table.add_data(name, round(precision[i], 4), round(recall[i], 4),
+                       round(f1[i], 4), int(support[i]))
+
+    run.log({"evaluation/per_class_metrics": table})
+
+    precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
+        test_labels, test_preds, average="macro"
+    )
+    run.summary["precision_macro"] = precision_macro
+    run.summary["recall_macro"] = recall_macro
+    run.summary["f1_macro"] = f1_macro
+
+    print(f"Per-class metrics logged. Macro F1: {f1_macro:.4f}")
+    return f1_macro
+
+
+# REGISTRY PROMOTION HELPERS
+def promote_sweep_winner(
+    user_name: str,
+    config: Dict,
+    entity: str,
+    project: str,
+    registry_name: str,
+    registry_path: str,
+    sweep_id: str,
+    best_sweep_run,
+    best_sweep_acc: float,
+    baseline_acc: float,
+    staged_artifact=None,
+):
+    """Log sweep winner as a new artifact version and link to the registry.
+
+    Creates a placeholder weights file (in production you'd save real
+    weights during the sweep) so users see v0 → v1 in the Registry.
+    """
+    promotion_run = wandb.init(
+        entity=entity, project=project,
+        name=f"promote-sweep-winner-{user_name}",
+        job_type="registry-promotion",
+        group=user_name,
+        tags=[user_name, "registry", "promotion", "sweep-winner"],
+    )
+
+    placeholder_path = f"sweep_winner_{user_name}.pth"
+    torch.save({"placeholder": True, "sweep_run_id": best_sweep_run.id}, placeholder_path)
+
+    artifact = wandb.Artifact(
+        name=f"aqua-species-classifier-{user_name}",
+        type="model",
+        description=f"Sweep winner — beat baseline {baseline_acc:.2f}% with {best_sweep_acc:.2f}%",
+        metadata={
+            "source": "sweep",
+            "val_accuracy": best_sweep_acc,
+            "baseline_accuracy": baseline_acc,
+            "sweep_id": sweep_id,
+            "sweep_run_id": best_sweep_run.id,
+            "learning_rate": best_sweep_run.config.get("learning_rate"),
+            "batch_size": best_sweep_run.config.get("batch_size"),
+            "weight_decay": best_sweep_run.config.get("weight_decay"),
+            "weights": "placeholder",
+        },
+    )
+    artifact.add_file(placeholder_path)
+    promotion_run.log_artifact(artifact)
+
+    promotion_run.link_artifact(
+        artifact=artifact,
+        target_path=f"{registry_path}/{registry_name}",
+        aliases=["production"],
+    )
+    wandb.finish()
+    os.remove(placeholder_path)
+
+    # Clean up staging alias on the old baseline
+    if staged_artifact and "staging" in staged_artifact.aliases:
+        staged_artifact.aliases.remove("staging")
+        staged_artifact.save()
+
+    print(f"  New version logged: aqua-species-classifier-{user_name}")
+    print(f"  Linked to {registry_name} with 'production' alias")
+    print(f"  → Registry: v0 = baseline (staging), v1 = sweep winner (production)")
+
+
+def promote_baseline(staged_artifact):
+    """Promote the existing baseline from staging to production."""
+    if "staging" in staged_artifact.aliases:
+        staged_artifact.aliases.remove("staging")
+    if "production" not in staged_artifact.aliases:
+        staged_artifact.aliases.append("production")
+    staged_artifact.save()
+    print(f"  Baseline promoted to production. Aliases: {staged_artifact.aliases}")
+
+
 # EXPORTS
 __all__ = [
     # Constants
@@ -560,6 +801,14 @@ __all__ = [
     "save_checkpoint", "log_checkpoint_artifact",
     # Visualization helpers
     "create_prediction_images", "create_predictions_table",
+    # Sweep helpers
+    "create_sweep_components",
+    # Model artifact helpers
+    "prepare_model_files",
+    # Evaluation helpers
+    "compute_and_log_class_metrics",
+    # Registry helpers
+    "promote_sweep_winner", "promote_baseline",
     # Classes
     "AquaticDataset",
 ]

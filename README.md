@@ -1,4 +1,10 @@
-# W&B Workshop 2026: Aquatic Species Classification
+# W&B Workshop 2026: From Experiment to Production with Full MLOps
+
+**Accompanying resources:**
+- [Workshop Report](https://wandb.ai/m-bakir/SIE-Workshop-2026/reports/London-Workshop--VmlldzoxNTkxNDkyOA) -- companion reference with embedded panels, interactive queries, and section-by-section explanations
+- [W&B Project](https://wandb.ai/m-bakir/SIE-Workshop-2026) -- shared project with all runs, artifacts, and registry entries
+
+---
 
 Build an image classifier for marine species and learn the full MLOps lifecycle with Weights & Biases -- from first experiment to production model.
 
