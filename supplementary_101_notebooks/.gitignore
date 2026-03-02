@@ -7,4 +7,5 @@
 !.env
 !README.md
 !W&B_101_Intro_to_Experiment_Tracking.ipynb
-!W&B_101_Intro_to_W&B_Artifacts.ipynb
+!W&B_101_Intro_to_Artifacts.ipynb
+!requirements.txt

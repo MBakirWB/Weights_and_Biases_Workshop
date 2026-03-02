@@ -1,0 +1,8 @@
+python-dotenv
+wandb
+numpy
+pandas
+scikit-learn
+torch
+torchvision
+Pillow
