@@ -1,0 +1,10 @@
+# Ignore everything in this directory
+*
+.*
+
+# Keep only these files
+!.gitignore
+!.env
+!README.md
+!W&B_101_Intro_to_Experiment_Tracking.ipynb
+!W&B_101_Intro_to_W&B_Artifacts_and_Registry.ipynb
