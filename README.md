@@ -50,7 +50,13 @@ pip install -r requirements.txt
 
 ### 2. Configure your `.env` file
 
-Open `workshop_material/.env` and fill in your W&B credentials:
+Copy the example file and fill in your W&B credentials:
+
+```bash
+cp workshop_material_english/.env.example workshop_material_english/.env
+```
+
+Then edit `workshop_material_english/.env` (or `workshop_material_japanese/.env` for Japanese) with your values:
 
 ```
 YOUR_NAME=<your-name>

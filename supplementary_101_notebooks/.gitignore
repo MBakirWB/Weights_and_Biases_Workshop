@@ -4,6 +4,7 @@
 
 # Keep only these files
 !.gitignore
+!.env.example
 !README.md
 !W&B_101_Intro_to_Experiment_Tracking.ipynb
 !W&B_101_Intro_to_Artifacts.ipynb
