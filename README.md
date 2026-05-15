@@ -1,8 +1,10 @@
 # W&B Workshop 2026: From Experiment to Production with Full MLOps
 
 **Accompanying resources:**
-- [Workshop Report](https://wandb.ai/m-bakir/SIE-Workshop-2026/reports/London-Workshop--VmlldzoxNTkxNDkyOA) -- companion reference with embedded panels, interactive queries, and section-by-section explanations
+- [Workshop Report - English](https://wandb.ai/m-bakir/SIE-Workshop-2026/reports/MLOps-in-Practice-Workshop-Guide-English--VmlldzoxNTkxNDkyOA) -- companion reference with embedded panels, interactive queries, and section-by-section explanations
 - [W&B Project](https://wandb.ai/m-bakir/SIE-Workshop-2026) -- shared project with all runs, artifacts, and registry entries
+
+> 🇯🇵 **日本語版のご案内:** ワークショップノートブックと関連ファイルの日本語版は [`workshop_material_japanese/`](workshop_material_japanese/) にあります。補助 101 ノートブックの日本語版は [`supplementary_101_notebooks/Japanese/`](supplementary_101_notebooks/Japanese/) にあります。
 
 ---
 

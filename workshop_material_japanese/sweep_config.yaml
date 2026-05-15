@@ -1,0 +1,40 @@
+# AQUA 種別分類のための Sweep 設定
+# 使い方:
+#   1. Sweep を作成: wandb sweep sweep_config.yaml
+#   2. agent を起動: wandb agent <ENTITY>/<PROJECT>/<SWEEP_ID>
+#   3. （オプション）ターミナルをさらに開いて wandb agent を実行し、
+#      CPU/GPU をまたいで並列化することもできます。
+
+program: sweep_train.py
+method: random
+name: aqua-hyperparam-sweep-cli
+# .env の値に合わせて更新してください
+entity: None    # 例: your-team-name
+project: SIE-Workshop-2026
+
+metric:
+  name: val/accuracy
+  goal: maximize
+
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 1e-2
+  batch_size:
+    values: [16, 32, 64]
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+  # 固定パラメータ（Sweep では振りません）
+  model_name:
+    values: [resnet50, efficientnet_b0]
+  epochs:
+    value: 2
+  image_size:
+    value: 224
+  max_samples:
+    value: 1000
+  use_amp:
+    value: true
