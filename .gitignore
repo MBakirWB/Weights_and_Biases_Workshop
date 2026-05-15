@@ -11,6 +11,9 @@ admin_setup_only/aqua_raw_data/
 admin_setup_only/aqua_splits/
 admin_setup_only/*.pth
 
+# Environment files (contain credentials)
+**/.env
+
 # W&B local run directories
 **/wandb/
 
